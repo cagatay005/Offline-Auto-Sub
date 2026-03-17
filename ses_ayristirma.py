@@ -10,7 +10,7 @@ def sesi_ayristir(video_yolu, cikti_ses_yolu="gecici_ses.wav"):
     subprocess.run(komut, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     return cikti_ses_yolu
 
-def videodan_metin_cikar(orijinal_video, model_boyutu="small"):
+def videodan_metin_cikar(orijinal_video, model_boyutu="medium"):
     gecici_ses = "gecici_ses.wav"
 
     try:
