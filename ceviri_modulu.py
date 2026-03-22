@@ -2,12 +2,34 @@ import datetime
 from transformers import MarianMTModel, MarianTokenizer
 
 class CeviriVeSrtYoneticisi:
-    def __init__(self, kaynak_dil="en", hedef_dil="tr"):
-        self.model_adi = f"Helsinki-NLP/opus-mt-tc-big-{kaynak_dil}-{hedef_dil}"
-        self.kelime_ayirici = MarianTokenizer.from_pretrained(self.model_adi)
-        self.ceviri_modeli = MarianMTModel.from_pretrained(self.model_adi)
+    def __init__(self, kaynak_dil="en", hedef_dil="tr", yerel_model_dizini=None):
+        """
+        Dinamik dil seçimi ve çevrimdışı model yükleme desteği eklendi.
+        """
+        self.kaynak_dil = kaynak_dil
+        self.hedef_dil = hedef_dil
+        
+        # Projenin çevrimdışı çalışma gereksinimi için yerel dizin kontrolü
+        if yerel_model_dizini:
+            self.model_yolu = f"{yerel_model_dizini}/opus-mt-{self.kaynak_dil}-{self.hedef_dil}"
+        else:
+            # Yerel dizin yoksa Hugging Face üzerinden varsayılan model adını oluştur
+            self.model_yolu = f"Helsinki-NLP/opus-mt-{self.kaynak_dil}-{self.hedef_dil}"
+
+        print(f"[{self.kaynak_dil} -> {self.hedef_dil}] yönü için model yükleniyor: {self.model_yolu}")
+        
+        try:
+            self.kelime_ayirici = MarianTokenizer.from_pretrained(self.model_yolu)
+            self.ceviri_modeli = MarianMTModel.from_pretrained(self.model_yolu)
+            print("Çeviri modeli başarıyla hazırlandı.")
+        except Exception as hata:
+            print(f"Model yüklenirken kritik hata! Lütfen dil kodlarını veya yerel model dosyalarını kontrol edin.\nHata Detayı: {hata}")
 
     def metinleri_cevir(self, metin_listesi):
+        # Boş liste kontrolü eklendi (Sistem kararlılığı için)
+        if not metin_listesi:
+            return []
+            
         girdi_verisi = self.kelime_ayirici(metin_listesi, return_tensors="pt", padding=True, truncation=True)
         cevrilmis_ciktilar = self.ceviri_modeli.generate(**girdi_verisi)
         return [self.kelime_ayirici.decode(c, skip_special_tokens=True) for c in cevrilmis_ciktilar]
@@ -35,7 +57,10 @@ class CeviriVeSrtYoneticisi:
                 dosya.write(f"{ceviri}\n\n")
 
 if __name__ == "__main__":
-    yonetici = CeviriVeSrtYoneticisi()
+    # Test için İspanyolca'dan Türkçe'ye çevrimdışı model dizini simülasyonu
+    # yonetici = CeviriVeSrtYoneticisi(kaynak_dil="es", hedef_dil="tr", yerel_model_dizini="./modeller")
+    
+    yonetici = CeviriVeSrtYoneticisi(kaynak_dil="en", hedef_dil="tr")
     
     ornek_ses_verileri = [
         {'baslangic': 0.0, 'bitis': 3.5, 'metin': 'The system works completely offline for data privacy.'},
