@@ -1,122 +1,271 @@
 import sys
+import os
+import cv2  # Videoyu okumak ve kare yakalamak icin
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, 
                              QHBoxLayout, QWidget, QFileDialog, QLabel, QProgressBar, 
-                             QSlider, QFrame, QTextEdit, QGroupBox)
+                             QSlider, QFrame, QTextEdit, QGroupBox, QComboBox, QListWidget,
+                             QSpinBox, QMessageBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QImage, QPixmap, QFont
 
-class AltyaziUygulamasi(QMainWindow):
+# 1. Islem Yonetimi (Arka plan calisani)
+class AltyaziIsleyicisi(QThread):
+    ilerleme = pyqtSignal(int, str)
+    tamamlandi = pyqtSignal(bool)
+
+    def run(self):
+        adimlar = [
+            (20, "Ses Ayristiriliyor (FFmpeg)..."),
+            (50, "Metne Donusturuluyor (Whisper)..."),
+            (80, "Ceviri Yapiliyor (Helsinki-NLP)..."),
+            (100, "Videonun Uzerine Isleniyor (Hardsubbing)...")
+        ]
+        for p, mesaj in adimlar:
+            self.ilerleme.emit(p, mesaj)
+            self.msleep(1500) 
+        self.tamamlandi.emit(True)
+
+# 2. Ana Uygulama Penceresi
+class ModernAltyaziUygulamasi(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Yapay Zeka Vizyon - Altyazi Duzenleyici")
-        self.setMinimumSize(900, 600)
+        self.setWindowTitle("AI Vision - Profesyonel Altyazi Duzenleyici")
+        self.setMinimumSize(1100, 750)
+        self.setAcceptDrops(True) 
+        self.dosya_yolu = ""
+        self.cikti_yolu = ""
         
-        #karanlık tema
-        self.setStyleSheet("""
-            QMainWindow { background-color: #121212; }
-            QGroupBox { color: #ffffff; font-weight: bold; border: 1px solid #333; margin-top: 10px; padding: 15px; border-radius: 8px; }
-            QLabel { color: #e0e0e0; font-size: 13px; }
-            QPushButton { background-color: #333; color: white; border-radius: 5px; padding: 8px; border: 1px solid #444; }
-            QPushButton:hover { background-color: #444; }
-            QPushButton#anaButon { background-color: #0078d4; border: none; font-weight: bold; height: 40px; }
-            QPushButton#anaButon:hover { background-color: #1084d9; }
-            QProgressBar { border: 1px solid #333; border-radius: 5px; text-align: center; color: white; background-color: #1e1e1e; }
-            QProgressBar::chunk { background-color: #0078d4; }
-            QSlider::handle:horizontal { background: #0078d4; border: 1px solid #0078d4; width: 18px; margin: -5px 0; border-radius: 9px; }
-        """)
-        
+        self.stilleri_uygula()
         self.arayuzu_hazirla()
 
+    def stilleri_uygula(self):
+        self.setStyleSheet("""
+            QMainWindow { background-color: #0f111a; }
+            QGroupBox { color: #82aaff; font-weight: bold; border: 1px solid #1f2233; margin-top: 15px; padding: 10px; border-radius: 5px; }
+            QLabel { color: #bfc7d5; }
+            QPushButton { background-color: #1f2233; color: #eeffff; border-radius: 4px; padding: 8px; }
+            QPushButton:hover { background-color: #292d3e; }
+            #suruklemeAlani { border: 2px dashed #444; border-radius: 10px; background-color: #1a1c25; }
+            #islemButonu { background-color: #c3e88d; color: #000; font-weight: bold; }
+            #iptalButonu { background-color: #ff5370; color: #fff; }
+        """)
+
     def arayuzu_hazirla(self):
-        ana_yerlesim = QHBoxLayout() #sol panel 
+        ana_yerlesim = QHBoxLayout()
+        sol_panel = QVBoxLayout()
 
-        ayarlar_paneli = QVBoxLayout()
-        
-        #dosya secimi
-        dosya_grubu = QGroupBox("1. Video Kaynagi")
-        dosya_yerlesimi = QVBoxLayout()
-        self.dosya_etiketi = QLabel("Dosya secilmedi...")
-        dosya_sec_butonu = QPushButton(" Dosya Sec")
-        dosya_sec_butonu.clicked.connect(self.dosya_ac)
-        dosya_yerlesimi.addWidget(self.dosya_etiketi)
-        dosya_yerlesimi.addWidget(dosya_sec_butonu)
-        dosya_grubu.setLayout(dosya_yerlesimi)
-        ayarlar_paneli.addWidget(dosya_grubu)
+        # --- SOL TARAF: AYARLAR ---
+        self.surukleme_etiketi = QLabel("\n\n🎥 Videoyu Buraya Surukle\n(MP4, MKV, AVI)")
+        self.surukleme_etiketi.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.surukleme_etiketi.setObjectName("suruklemeAlani")
+        self.surukleme_etiketi.setFixedSize(350, 150)
+        sol_panel.addWidget(self.surukleme_etiketi)
 
-        # altyazi 
-        stil_grubu = QGroupBox("2. Altyazi Gorunumu")
+        bilgi_grubu = QGroupBox("Dosya Bilgisi")
+        self.bilgi_etiketi = QLabel("Cozunurluk: -\nSure: -\nFormat: -")
+        bilgi_yerlesimi = QVBoxLayout()
+        bilgi_yerlesimi.addWidget(self.bilgi_etiketi)
+        bilgi_grubu.setLayout(bilgi_yerlesimi)
+        sol_panel.addWidget(bilgi_grubu)
+
+        # Altyazi Stili
+        stil_grubu = QGroupBox("Altyazi Stili")
         stil_yerlesimi = QVBoxLayout()
         
-        stil_yerlesimi.addWidget(QLabel("Arka Plan Saydamligi:"))
+        h_yerlesim = QHBoxLayout()
+        self.font_kutusu = QComboBox()
+        self.font_kutusu.addItems(["Arial", "Verdana", "Times New Roman", "Courier New"])
+        self.font_kutusu.currentTextChanged.connect(self.altyazi_onizlemesini_guncelle)
+        
+        self.font_boyutu = QSpinBox()
+        self.font_boyutu.setRange(10, 80)
+        self.font_boyutu.setValue(24)
+        self.font_boyutu.valueChanged.connect(self.altyazi_onizlemesini_guncelle)
+        
+        h_yerlesim.addWidget(QLabel("Font:"))
+        h_yerlesim.addWidget(self.font_kutusu)
+        h_yerlesim.addWidget(QLabel("Boyut:"))
+        h_yerlesim.addWidget(self.font_boyutu)
+        stil_yerlesimi.addLayout(h_yerlesim)
+
+        stil_yerlesimi.addWidget(QLabel("Konum:"))
+        self.konum_kutusu = QComboBox()
+        self.konum_kutusu.addItems(["Alt (Bottom)", "Orta (Middle)", "Ust (Top)"])
+        self.konum_kutusu.currentIndexChanged.connect(self.altyazi_onizlemesini_guncelle)
+        stil_yerlesimi.addWidget(self.konum_kutusu)
+
+        stil_yerlesimi.addWidget(QLabel("Saydamlik:"))
         self.saydamlik_kaydirici = QSlider(Qt.Orientation.Horizontal)
         self.saydamlik_kaydirici.setRange(0, 255)
         self.saydamlik_kaydirici.setValue(180)
-        self.saydamlik_kaydirici.valueChanged.connect(self.onizlemeyi_guncelle)
+        self.saydamlik_kaydirici.valueChanged.connect(self.altyazi_onizlemesini_guncelle)
         stil_yerlesimi.addWidget(self.saydamlik_kaydirici)
-
-        #önizlme
-        stil_yerlesimi.addWidget(QLabel("On Izleme:"))
-        self.onizleme_cercevesi = QFrame()
-        self.onizleme_cercevesi.setFixedSize(350, 150)
-        self.onizleme_cercevesi.setStyleSheet("background-color: #2c3e50; border-radius: 5px;") 
-        
-        self.onizleme_yerlesimi = QVBoxLayout(self.onizleme_cercevesi)
-        self.onizleme_metni = QLabel("Ornek Altyazi Metni (00:12)")
-        self.onizleme_metni.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.onizleme_metni.setFixedWidth(250)
-        self.onizlemeyi_guncelle() 
-        
-        self.onizleme_yerlesimi.addWidget(self.onizleme_metni, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignBottom)
-        stil_yerlesimi.addWidget(self.onizleme_cercevesi)
         
         stil_grubu.setLayout(stil_yerlesimi)
-        ayarlar_paneli.addWidget(stil_grubu)
+        sol_panel.addWidget(stil_grubu)
+
+        self.cikti_butonu = QPushButton("📂 Cikti Klasoru Sec")
+        self.cikti_butonu.clicked.connect(self.cikti_klasoru_sec)
+        sol_panel.addWidget(self.cikti_butonu)
+
+        # --- SAG TARAF: CANLI VIDEO ON IZLEME ---
+        sag_panel = QVBoxLayout()
+
+        self.onizleme_kapsayici = QWidget()
+        self.onizleme_kapsayici.setFixedSize(640, 360)
+        self.onizleme_kapsayici.setStyleSheet("background-color: #000; border: 1px solid #333;")
         
-        #sağ panel
-        islem_paneli = QVBoxLayout()
-        
-        gunluk_grubu = QGroupBox("3. Islem Durumu ve Gunlukler")
-        gunluk_yerlesimi = QVBoxLayout()
+        self.video_karesi = QLabel(self.onizleme_kapsayici)
+        self.video_karesi.setFixedSize(640, 360)
+        self.video_karesi.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Dinamik Altyazi Katmani
+        self.katman_yerlesimi = QVBoxLayout(self.onizleme_kapsayici)
+        self.altyazi_katmani = QLabel("Altyazilar Boyle Gozukur")
+        self.altyazi_katmani.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.altyazi_katmani.setHidden(True)
+        self.katman_yerlesimi.addWidget(self.altyazi_katmani)
+
+        sag_panel.addWidget(QLabel("Canli On Izleme Paneli:"))
+        sag_panel.addWidget(self.onizleme_kapsayici)
+
+        self.altyazi_listesi = QListWidget()
+        self.altyazi_listesi.setMaximumHeight(150)
+        sag_panel.addWidget(QLabel("Zaman Damgali Metinler (Onizleme):"))
+        sag_panel.addWidget(self.altyazi_listesi)
+
+        dil_yerlesimi = QHBoxLayout()
+        self.dil_kutusu = QComboBox()
+        self.dil_kutusu.addItems(["Turkce (Helsinki-NLP)", "Ingilizce", "Almanca"])
+        dil_yerlesimi.addWidget(QLabel("Hedef Dil Secimi:"))
+        dil_yerlesimi.addWidget(self.dil_kutusu)
+        sag_panel.addLayout(dil_yerlesimi)
+
         self.ilerleme_cubugu = QProgressBar()
-        self.gunluk_alani = QTextEdit()
-        self.gunluk_alani.setReadOnly(True)
-        self.gunluk_alani.setStyleSheet("background-color: #000; color: #00ff00; font-family: 'Consolas';")
-        gunluk_yerlesimi.addWidget(self.ilerleme_cubugu)
-        gunluk_yerlesimi.addWidget(self.gunluk_alani)
-        gunluk_grubu.setLayout(gunluk_yerlesimi)
-        
-        islem_paneli.addWidget(gunluk_grubu)
+        self.durum_mesaji = QLabel("Hazir")
+        sag_panel.addWidget(self.durum_mesaji)
+        sag_panel.addWidget(self.ilerleme_cubugu)
 
-        #baslat butonu
-        self.baslat_butonu = QPushButton(" Islemi Baslat (Gomulu Altyazi)")
-        self.baslat_butonu.setObjectName("anaButon")
-        islem_paneli.addWidget(self.baslat_butonu)
+        butonlar = QHBoxLayout()
+        self.baslat_butonu = QPushButton("Islemi Baslat")
+        self.baslat_butonu.setObjectName("islemButonu")
+        self.baslat_butonu.clicked.connect(self.islemi_baslat)
+        self.iptal_butonu = QPushButton("Iptal")
+        self.iptal_butonu.setObjectName("iptalButonu")
+        self.iptal_butonu.setEnabled(False)
+        self.iptal_butonu.clicked.connect(self.islemi_iptal_et)
+        butonlar.addWidget(self.baslat_butonu)
+        butonlar.addWidget(self.iptal_butonu)
+        sag_panel.addLayout(butonlar)
 
-        ana_yerlesim.addLayout(ayarlar_paneli, 1)
-        ana_yerlesim.addLayout(islem_paneli, 2)
+        ana_yerlesim.addLayout(sol_panel, 1)
+        ana_yerlesim.addLayout(sag_panel, 2)
+        kapsayici = QWidget()
+        kapsayici.setLayout(ana_yerlesim)
+        self.setCentralWidget(kapsayici)
 
-        ana_arac = QWidget()
-        ana_arac.setLayout(ana_yerlesim)
-        self.setCentralWidget(ana_arac)
+    # --- ON IZLEME MANTIK GUNCELLEMELERI ---
+    def katman_yerlesimini_temizle(self):
+        """Yerlesim icindeki bosluklari ve elemanlari temizler."""
+        while self.katman_yerlesimi.count():
+            item = self.katman_yerlesimi.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
 
-    def onizlemeyi_guncelle(self):
-        deger = self.saydamlik_kaydirici.value()
-        self.onizleme_metni.setStyleSheet(f"""
-            background-color: rgba(0, 0, 0, {deger}); 
-            color: white; 
-            padding: 5px; 
-            border-radius: 3px;
-            font-size: 16px;
+    def altyazi_onizlemesini_guncelle(self):
+        """Altyazi ayarlarini canli olarak hem yaziya hem konuma uygular."""
+        if not self.dosya_yolu: return
+
+        font_ailesi = self.font_kutusu.currentText()
+        boyut = self.font_boyutu.value()
+        saydamlik = self.saydamlik_kaydirici.value()
+        konum_indeksi = self.konum_kutusu.currentIndex()
+
+        # Yerlesimi sifirla
+        self.katman_yerlesimini_temizle()
+
+        # Konumu ayarla (Bosluk/Stretch mantigi)
+        if konum_indeksi == 0: # Alt
+            self.katman_yerlesimi.addStretch()
+            self.katman_yerlesimi.addWidget(self.altyazi_katmani)
+        elif konum_indeksi == 1: # Orta
+            self.katman_yerlesimi.addStretch()
+            self.katman_yerlesimi.addWidget(self.altyazi_katmani)
+            self.katman_yerlesimi.addStretch()
+        else: # Ust
+            self.katman_yerlesimi.addWidget(self.altyazi_katmani)
+            self.katman_yerlesimi.addStretch()
+
+        # Stili uygula
+        self.altyazi_katmani.setStyleSheet(f"""
+            color: rgba(255, 255, 255, {saydamlik});
+            font-family: {font_ailesi};
+            font-size: {boyut}px;
+            background-color: rgba(0, 0, 0, {saydamlik});
+            padding: 10px;
+            border-radius: 5px;
         """)
+        self.altyazi_katmani.setHidden(False)
 
-    def dosya_ac(self):
-        dosya_adi, _ = QFileDialog.getOpenFileName(self, 'Video Sec', '', "Videolar (*.mp4 *.mkv *.avi)")
-        if dosya_adi:
-            temiz_isim = dosya_adi.split('/')[-1]
-            self.dosya_etiketi.setText(f"Secilen: {temiz_isim}")
+    def video_onizlemesini_goster(self, yol):
+        yakala = cv2.VideoCapture(yol)
+        genislik = int(yakala.get(cv2.CAP_PROP_FRAME_WIDTH))
+        yukseklik = int(yakala.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.bilgi_etiketi.setText(f"Cozunurluk: {genislik}x{yukseklik}\nFormat: {os.path.splitext(yol)[1].upper()[1:]}")
+
+        basarili, kare = yakala.read()
+        if basarili:
+            kare = cv2.cvtColor(kare, cv2.COLOR_BGR2RGB)
+            h, w, ch = kare.shape
+            q_resim = QImage(kare.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            piksel_haritasi = QPixmap.fromImage(q_resim)
+            self.video_karesi.setPixmap(piksel_haritasi.scaled(640, 360, Qt.AspectRatioMode.KeepAspectRatio))
+            self.altyazi_onizlemesini_guncelle()
+        yakala.release()
+
+    def dragEnterEvent(self, olay: QDragEnterEvent):
+        if olay.mimeData().hasUrls(): olay.accept()
+        else: olay.ignore()
+
+    def dropEvent(self, olay: QDropEvent):
+        dosyalar = [u.toLocalFile() for u in olay.mimeData().urls()]
+        if dosyalar:
+            self.dosya_yolu = dosyalar[0]
+            if os.path.splitext(self.dosya_yolu)[1].lower() in ['.mp4', '.mkv', '.avi']:
+                self.surukleme_etiketi.setText(f"Dosya: {os.path.basename(self.dosya_yolu)}")
+                self.altyazi_listesi.clear()
+                self.video_onizlemesini_goster(self.dosya_yolu)
+            else:
+                QMessageBox.warning(self, "Hata", "Gecersiz format!")
+
+    def cikti_klasoru_sec(self):
+        self.cikti_yolu = QFileDialog.getExistingDirectory(self, "Klasor Sec")
+
+    def islemi_baslat(self):
+        if not self.dosya_yolu: return
+        self.isleyici = AltyaziIsleyicisi()
+        self.isleyici.ilerleme.connect(self.arayuzu_guncelle)
+        self.isleyici.tamamlandi.connect(self.islem_tamamlandi)
+        self.isleyici.start()
+        self.baslat_butonu.setEnabled(False)
+        self.iptal_butonu.setEnabled(True)
+
+    def arayuzu_guncelle(self, deger, mesaj):
+        self.ilerleme_cubugu.setValue(deger)
+        self.durum_mesaji.setText(mesaj)
+
+    def islemi_iptal_et(self):
+        if hasattr(self, 'isleyici'): self.isleyici.terminate()
+        self.baslat_butonu.setEnabled(True)
+        self.durum_mesaji.setText("Islem iptal edildi.")
+
+    def islem_tamamlandi(self):
+        self.baslat_butonu.setEnabled(True)
+        self.iptal_butonu.setEnabled(False)
+        QMessageBox.information(self, "Basarili", "Islem basariyla tamamlandi!")
 
 if __name__ == "__main__":
     uygulama = QApplication(sys.argv)
-    pencere = AltyaziUygulamasi()
+    pencere = ModernAltyaziUygulamasi()
     pencere.show()
     sys.exit(uygulama.exec())
