@@ -1,5 +1,8 @@
+import os
+import torch
 import datetime
 import threading
+import time
 from transformers import MarianMTModel, MarianTokenizer
 
 class CeviriVeSrtYoneticisi:
@@ -7,16 +10,28 @@ class CeviriVeSrtYoneticisi:
         self.kaynak_dil = kaynak_dil
         self.hedef_dil = hedef_dil
         
+        # İşletim sisteminden bağımsız dosya yolu birleştirme (Windows: \, Linux/Mac: /)
         if yerel_model_dizini:
-            self.model_yolu = f"{yerel_model_dizini}/opus-mt-{self.kaynak_dil}-{self.hedef_dil}"
+            self.model_yolu = os.path.join(yerel_model_dizini, f"opus-mt-{self.kaynak_dil}-{self.hedef_dil}")
         else:
             self.model_yolu = f"Helsinki-NLP/opus-mt-{self.kaynak_dil}-{self.hedef_dil}"
 
         print(f"[{self.kaynak_dil} -> {self.hedef_dil}] yönü için model yükleniyor: {self.model_yolu}")
         
+        # Tüm işletim sistemleri (Windows, macOS, Linux) için donanım hızlandırma tespiti
+        if torch.cuda.is_available():
+            self.cihaz = torch.device("cuda") # Windows/Linux NVIDIA GPU
+        elif torch.backends.mps.is_available():
+            self.cihaz = torch.device("mps")  # macOS Apple Silicon (M1/M2/M3 vb.)
+        else:
+            self.cihaz = torch.device("cpu")  # Varsayılan temel işlemci
+            
+        print(f"Kullanılan donanım birimi: {self.cihaz}")
+
         try:
             self.kelime_ayirici = MarianTokenizer.from_pretrained(self.model_yolu)
-            self.ceviri_modeli = MarianMTModel.from_pretrained(self.model_yolu)
+            # Modeli işletim sistemine uygun seçilen cihaza (donanıma) gönder
+            self.ceviri_modeli = MarianMTModel.from_pretrained(self.model_yolu).to(self.cihaz)
             print("Çeviri modeli başarıyla hazırlandı.")
         except Exception as hata:
             print(f"Model yüklenirken kritik hata! Hata Detayı: {hata}")
@@ -25,7 +40,9 @@ class CeviriVeSrtYoneticisi:
         """Tekil metin çevirisi yapar (İlerleme çubuğunu doğru hesaplamak için)."""
         if not metin:
             return ""
-        girdi_verisi = self.kelime_ayirici([metin], return_tensors="pt", padding=True, truncation=True)
+        
+        # Girdi verisini modelin bulunduğu cihaza göndererek sistemler arası uyumu sağla
+        girdi_verisi = self.kelime_ayirici([metin], return_tensors="pt", padding=True, truncation=True).to(self.cihaz)
         cevrilmis_cikti = self.ceviri_modeli.generate(**girdi_verisi)
         return self.kelime_ayirici.decode(cevrilmis_cikti[0], skip_special_tokens=True)
 
@@ -81,8 +98,6 @@ class CeviriVeSrtYoneticisi:
 
 
 if __name__ == "__main__":
-    import time
-
     yonetici = CeviriVeSrtYoneticisi(kaynak_dil="en", hedef_dil="tr")
     
     ornek_ses_verileri = [
@@ -107,6 +122,6 @@ if __name__ == "__main__":
         bitis_kancasi=islem_tamamlandi
     )
     
-    # Bu döngü, arka plandaki işlem bitene kadar ana programın kapanmasını engeller
+    # Buradaki döngü arka plandaki işlem bitene kadar ana programın kapanmasını engeller
     while threading.active_count() > 1:
         time.sleep(0.5)
