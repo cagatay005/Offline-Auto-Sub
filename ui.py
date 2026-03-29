@@ -1,6 +1,6 @@
 import sys
 import os
-import cv2  # Videoyu okumak ve kare yakalamak icin
+import cv2 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, 
                              QHBoxLayout, QWidget, QFileDialog, QLabel, QProgressBar, 
                              QSlider, QFrame, QTextEdit, QGroupBox, QComboBox, QListWidget,
@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QImage, QPixmap, QFont
 
-# 1. Islem Yonetimi (Arka plan calisani)
 class AltyaziIsleyicisi(QThread):
     ilerleme = pyqtSignal(int, str)
     tamamlandi = pyqtSignal(bool)
@@ -25,7 +24,7 @@ class AltyaziIsleyicisi(QThread):
             self.msleep(1500) 
         self.tamamlandi.emit(True)
 
-# 2. Ana Uygulama Penceresi
+
 class ModernAltyaziUygulamasi(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -54,7 +53,6 @@ class ModernAltyaziUygulamasi(QMainWindow):
         ana_yerlesim = QHBoxLayout()
         sol_panel = QVBoxLayout()
 
-        # --- SOL TARAF: AYARLAR ---
         self.surukleme_etiketi = QLabel("\n\n🎥 Videoyu Buraya Surukle\n(MP4, MKV, AVI)")
         self.surukleme_etiketi.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.surukleme_etiketi.setObjectName("suruklemeAlani")
@@ -68,7 +66,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         bilgi_grubu.setLayout(bilgi_yerlesimi)
         sol_panel.addWidget(bilgi_grubu)
 
-        # Altyazi Stili
+        #altyazi stili
         stil_grubu = QGroupBox("Altyazi Stili")
         stil_yerlesimi = QVBoxLayout()
         
@@ -108,7 +106,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.cikti_butonu.clicked.connect(self.cikti_klasoru_sec)
         sol_panel.addWidget(self.cikti_butonu)
 
-        # --- SAG TARAF: CANLI VIDEO ON IZLEME ---
+        
         sag_panel = QVBoxLayout()
 
         self.onizleme_kapsayici = QWidget()
@@ -119,7 +117,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.video_karesi.setFixedSize(640, 360)
         self.video_karesi.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Dinamik Altyazi Katmani
+        #dinamik atyazı kısmı 
         self.katman_yerlesimi = QVBoxLayout(self.onizleme_kapsayici)
         self.altyazi_katmani = QLabel("Altyazilar Boyle Gozukur")
         self.altyazi_katmani.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -164,7 +162,6 @@ class ModernAltyaziUygulamasi(QMainWindow):
         kapsayici.setLayout(ana_yerlesim)
         self.setCentralWidget(kapsayici)
 
-    # --- ON IZLEME MANTIK GUNCELLEMELERI ---
     def katman_yerlesimini_temizle(self):
         """Yerlesim icindeki bosluklari ve elemanlari temizler."""
         while self.katman_yerlesimi.count():
@@ -181,22 +178,21 @@ class ModernAltyaziUygulamasi(QMainWindow):
         saydamlik = self.saydamlik_kaydirici.value()
         konum_indeksi = self.konum_kutusu.currentIndex()
 
-        # Yerlesimi sifirla
+    
         self.katman_yerlesimini_temizle()
 
-        # Konumu ayarla (Bosluk/Stretch mantigi)
-        if konum_indeksi == 0: # Alt
+        if konum_indeksi == 0: #alt
             self.katman_yerlesimi.addStretch()
             self.katman_yerlesimi.addWidget(self.altyazi_katmani)
-        elif konum_indeksi == 1: # Orta
+        elif konum_indeksi == 1: # orta
             self.katman_yerlesimi.addStretch()
             self.katman_yerlesimi.addWidget(self.altyazi_katmani)
             self.katman_yerlesimi.addStretch()
-        else: # Ust
+        else: # üst
             self.katman_yerlesimi.addWidget(self.altyazi_katmani)
             self.katman_yerlesimi.addStretch()
 
-        # Stili uygula
+        # stili uygula
         self.altyazi_katmani.setStyleSheet(f"""
             color: rgba(255, 255, 255, {saydamlik});
             font-family: {font_ailesi};
