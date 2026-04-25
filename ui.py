@@ -8,11 +8,13 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QImage, QPixmap, QFont
 
+# Arka planda çalışan işlemler arayüzü dondurmasın diye bu sınıfı thread olarak tanımladık
 class AltyaziIsleyicisi(QThread):
     ilerleme = pyqtSignal(int, str)
     tamamlandi = pyqtSignal(bool)
 
     def run(self):
+        # Gerçek uygulamada buraya whisper ve ffmpeg komutları gelecek
         adimlar = [
             (20, "Ses Ayristiriliyor (FFmpeg)..."),
             (50, "Metne Donusturuluyor (Whisper)..."),
@@ -21,7 +23,7 @@ class AltyaziIsleyicisi(QThread):
         ]
         for p, mesaj in adimlar:
             self.ilerleme.emit(p, mesaj)
-            self.msleep(1500) 
+            self.msleep(1500) # İşlem yapılıyormuş gibi kısa bekletmeler ekledik
         self.tamamlandi.emit(True)
 
 
@@ -30,7 +32,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         super().__init__()
         self.setWindowTitle("AI Vision - Profesyonel Altyazi Duzenleyici")
         self.setMinimumSize(1100, 750)
-        self.setAcceptDrops(True) 
+        self.setAcceptDrops(True) # Sürükle-bırak özelliğini aktif ettik
         self.dosya_yolu = ""
         self.cikti_yolu = ""
         
@@ -38,6 +40,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.arayuzu_hazirla()
 
     def stilleri_uygula(self):
+        # Modern bir karanlık tema için CSS benzeri stil kodları
         self.setStyleSheet("""
             QMainWindow { background-color: #0f111a; }
             QGroupBox { color: #82aaff; font-weight: bold; border: 1px solid #1f2233; margin-top: 15px; padding: 10px; border-radius: 5px; }
@@ -53,6 +56,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         ana_yerlesim = QHBoxLayout()
         sol_panel = QVBoxLayout()
 
+        # Dosya yükleme alanı
         self.surukleme_etiketi = QLabel("\n\n🎥 Videoyu Buraya Surukle\n(MP4, MKV, AVI)")
         self.surukleme_etiketi.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.surukleme_etiketi.setObjectName("suruklemeAlani")
@@ -66,7 +70,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         bilgi_grubu.setLayout(bilgi_yerlesimi)
         sol_panel.addWidget(bilgi_grubu)
 
-        #altyazi stili
+        # Kullanıcının altyazı tipografisini ayarlayabileceği kısım
         stil_grubu = QGroupBox("Altyazi Stili")
         stil_yerlesimi = QVBoxLayout()
         
@@ -109,6 +113,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         
         sag_panel = QVBoxLayout()
 
+        # Video önizleme ekranı ve altyazı katmanı
         self.onizleme_kapsayici = QWidget()
         self.onizleme_kapsayici.setFixedSize(640, 360)
         self.onizleme_kapsayici.setStyleSheet("background-color: #000; border: 1px solid #333;")
@@ -117,7 +122,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.video_karesi.setFixedSize(640, 360)
         self.video_karesi.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        #dinamik atyazı kısmı 
+        # Altyazıyı video üzerinde dinamik olarak konumlandırıyoruz
         self.katman_yerlesimi = QVBoxLayout(self.onizleme_kapsayici)
         self.altyazi_katmani = QLabel("Altyazilar Boyle Gozukur")
         self.altyazi_katmani.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -144,6 +149,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         sag_panel.addWidget(self.durum_mesaji)
         sag_panel.addWidget(self.ilerleme_cubugu)
 
+        # Aksiyon butonları
         butonlar = QHBoxLayout()
         self.baslat_butonu = QPushButton("Islemi Baslat")
         self.baslat_butonu.setObjectName("islemButonu")
@@ -178,10 +184,10 @@ class ModernAltyaziUygulamasi(QMainWindow):
         saydamlik = self.saydamlik_kaydirici.value()
         konum_indeksi = self.konum_kutusu.currentIndex()
 
-    
+        # Yerleşim hiyerarşisini sıfırlayıp konumu tekrar belirliyoruz
         self.katman_yerlesimini_temizle()
 
-        if konum_indeksi == 0: #alt
+        if konum_indeksi == 0: # alt
             self.katman_yerlesimi.addStretch()
             self.katman_yerlesimi.addWidget(self.altyazi_katmani)
         elif konum_indeksi == 1: # orta
@@ -192,7 +198,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
             self.katman_yerlesimi.addWidget(self.altyazi_katmani)
             self.katman_yerlesimi.addStretch()
 
-        # stili uygula
+        # Font ve renk stilini güncelle
         self.altyazi_katmani.setStyleSheet(f"""
             color: rgba(255, 255, 255, {saydamlik});
             font-family: {font_ailesi};
@@ -204,6 +210,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.altyazi_katmani.setHidden(False)
 
     def video_onizlemesini_goster(self, yol):
+        # OpenCV ile videodan tek bir kare alıp önizleme olarak basıyoruz
         yakala = cv2.VideoCapture(yol)
         genislik = int(yakala.get(cv2.CAP_PROP_FRAME_WIDTH))
         yukseklik = int(yakala.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -220,10 +227,12 @@ class ModernAltyaziUygulamasi(QMainWindow):
         yakala.release()
 
     def dragEnterEvent(self, olay: QDragEnterEvent):
+        # Dosya sürükleme başladığında kabul et
         if olay.mimeData().hasUrls(): olay.accept()
         else: olay.ignore()
 
     def dropEvent(self, olay: QDropEvent):
+        # Dosya bırakıldığında formatı kontrol et ve önizlemeyi yükle
         dosyalar = [u.toLocalFile() for u in olay.mimeData().urls()]
         if dosyalar:
             self.dosya_yolu = dosyalar[0]
@@ -238,6 +247,7 @@ class ModernAltyaziUygulamasi(QMainWindow):
         self.cikti_yolu = QFileDialog.getExistingDirectory(self, "Klasor Sec")
 
     def islemi_baslat(self):
+        # Arka plan işlemini tetikler
         if not self.dosya_yolu: return
         self.isleyici = AltyaziIsleyicisi()
         self.isleyici.ilerleme.connect(self.arayuzu_guncelle)
