@@ -48,7 +48,7 @@ IronScript; video dosyalarındaki konuşmaları yapay zeka ile analiz eden, metn
     ```bash
     python ui.py
     ```
-
+> **Önemli Not:** NVIDIA GPU hızlandırmasından (CUDA) tam verim alabilmek için PyTorch'un sisteminizdeki CUDA sürümüyle uyumlu olması gerekir. Eğer ekran kartınız desteklemiyorsa veya hata alıyorsanız, [pytorch.org](https://pytorch.org/get-started/locally/) adresine giderek sisteminize uygun özel kurulum komutunu alıp çalıştırmanız önerilir.
 ---
 
 ## 🇬🇧 ENGLISH DOCUMENTATION
@@ -95,3 +95,4 @@ IronScript is an advanced desktop application designed to transcribe, translate,
     ```bash
     python ui.py
     ```
+> **Important Note:** To fully utilize NVIDIA GPU acceleration (CUDA), ensure that PyTorch is compatible with the CUDA version on your system. If your GPU is not supported or you encounter errors, it is recommended to visit [pytorch.org](https://pytorch.org/get-started/locally/) to get and run the specific installation command for your setup.
