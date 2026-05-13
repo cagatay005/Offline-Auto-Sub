@@ -51,6 +51,16 @@ IronScript; video dosyalarındaki konuşmaları yapay zeka ile analiz eden, metn
 > **Önemli Not:** NVIDIA GPU hızlandırmasından (CUDA) tam verim alabilmek için PyTorch'un sisteminizdeki CUDA sürümüyle uyumlu olması gerekir. Eğer ekran kartınız desteklemiyorsa veya hata alıyorsanız, [pytorch.org](https://pytorch.org/get-started/locally/) adresine giderek sisteminize uygun özel kurulum komutunu alıp çalıştırmanız önerilir.
 ---
 
+### Makefile ile Kolay Yönetim
+
+Proje yönetimini otomatize etmek için bir `Makefile` eklenmiştir. Terminalinizde `make` komutu yüklüyse aşağıdaki kısa yolları kullanabilirsiniz:
+
+* **`make install`**: CUDA 12.1 destekli PyTorch'u ve `requirements.txt` içindeki diğer tüm bağımlılıkları yükler.
+* **`make compile`**: C++ tabanlı `hardsubbing.cpp` dosyasını `hardsubbing.dll` olarak derler.
+* **`make run`**: Uygulamayı (`ui.py`) doğrudan başlatır.
+* **`make clean`**: Derlenmiş DLL dosyasını ve çalışma sırasında oluşan geçici (`.wav`, `.srt`) dosyaları temizler.
+* **`make all`**: Kurulum, derleme ve çalıştırma işlemlerini tek seferde sırayla yapar.
+
 ## 🇬🇧 ENGLISH DOCUMENTATION
 
 IronScript is an advanced desktop application designed to transcribe, translate, and hardcode subtitles into video files using AI models and hardware-accelerated rendering.
@@ -96,3 +106,13 @@ IronScript is an advanced desktop application designed to transcribe, translate,
     python ui.py
     ```
 > **Important Note:** To fully utilize NVIDIA GPU acceleration (CUDA), ensure that PyTorch is compatible with the CUDA version on your system. If your GPU is not supported or you encounter errors, it is recommended to visit [pytorch.org](https://pytorch.org/get-started/locally/) to get and run the specific installation command for your setup.
+
+### Easy Management with Makefile
+
+A `Makefile` is included to automate project management tasks. If you have the `make` utility installed, you can use these shortcuts:
+
+* **`make install`**: Installs CUDA 12.1 compatible PyTorch and all dependencies from `requirements.txt`.
+* **`make compile`**: Compiles the C++ `hardsubbing.cpp` source into `hardsubbing.dll`.
+* **`make run`**: Directly launches the application (`ui.py`).
+* **`make clean`**: Removes the compiled DLL and any temporary (`.wav`, `.srt`) files created during execution.
+* **`make all`**: Runs the install, compile, and run commands sequentially in one go.
